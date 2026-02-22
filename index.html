@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SP AI - Study Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <style>
+        :root {
+            --bg-color: #131314;
+            --sidebar-bg: #1e1f20;
+            --text-color: #e3e3e3;
+            --accent-color: #4b90ff;
+            --input-bg: #282a2d;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Outfit', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); display: flex; height: 100vh; }
+
+        /* Sidebar Styling */
+        #sidebar {
+            width: 260px;
+            background: var(--sidebar-bg);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .new-chat-btn {
+            background: #2d2f31;
+            border: none;
+            color: white;
+            padding: 12px;
+            border-radius: 50px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+        }
+        #history-list {
+            flex: 1;
+            overflow-y: auto;
+            list-style: none;
+        }
+        .history-item {
+            padding: 10px;
+            margin-bottom: 5px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .history-item:hover { background: #333537; }
+
+        /* Main Chat Area */
+        #main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        header { width: 100%; max-width: 800px; padding: 20px 0; }
+        header h1 { font-size: 24px; color: var(--accent-color); }
+
+        #chat-window {
+            flex: 1;
+            width: 100%;
+            max-width: 800px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding-bottom: 100px;
+        }
+
+        .message { display: flex; gap: 15px; max-width: 90%; animation: fadeIn 0.3s ease; }
+        .user-msg { align-self: flex-end; flex-direction: row-reverse; }
+        .bot-msg { align-self: flex-start; }
+        
+        .msg-content {
+            background: #282a2d;
+            padding: 12px 18px;
+            border-radius: 18px;
+            line-height: 1.6;
+            font-size: 15px;
+        }
+        .user-msg .msg-content { background: var(--accent-color); color: white; }
+
+        /* Input Area */
+        .input-container {
+            position: absolute;
+            bottom: 30px;
+            width: 90%;
+            max-width: 700px;
+            background: var(--input-bg);
+            border-radius: 30px;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 10px;
+            font-size: 16px;
+            outline: none;
+        }
+        .action-btn {
+            background: transparent;
+            border: none;
+            color: #c4c7c5;
+            cursor: pointer;
+            font-size: 24px;
+        }
+        .action-btn:hover { color: white; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <aside id="sidebar">
+        <button class="new-chat-btn" onclick="location.reload()">
+            <span class="material-symbols-rounded">add</span> New Chat
+        </button>
+        <div id="history-list">
+            </div>
+    </aside>
+
+    <main id="main-container">
+        <header>
+            <h1>SP AI</h1>
+            <p style="font-size: 12px; color: #888;">Study Purpose Intelligence</p>
+        </header>
+
+        <div id="chat-window">
+            <div class="message bot-msg">
+                <span class="material-symbols-rounded">smart_toy</span>
+                <div class="msg-content">Hello! I'm SP AI. How can I help you with your studies today?</div>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <label for="file-input" class="action-btn">
+                <span class="material-symbols-rounded">attach_file</span>
+            </label>
+            <input type="file" id="file-input" style="display: none;">
+            
+            <input type="text" id="user-input" placeholder="Enter a prompt here...">
+            
+            <button class="action-btn" id="send-btn">
+                <span class="material-symbols-rounded">send</span>
+            </button>
+        </div>
+    </main>
+
+    <script>
+        // CONFIGURATION - Put your API Key here
+        const API_KEY = "AIzaSyAYZckAkzMQiAf_cYwYR-Ps752OQ6XhWL0"; 
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+
+        const chatWindow = document.getElementById('chat-window');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const historyList = document.getElementById('history-list');
+
+        let chatHistory = [];
+
+        async function getResponse(prompt) {
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
+                const data = await response.json();
+                return data.candidates[0].content.parts[0].text;
+            } catch (error) {
+                return "Error: " + error.message;
+            }
+        }
+
+        function appendMessage(role, text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role === 'user' ? 'user-msg' : 'bot-msg'}`;
+            msgDiv.innerHTML = `
+                <span class="material-symbols-rounded">${role === 'user' ? 'account_circle' : 'smart_toy'}</span>
+                <div class="msg-content">${text}</div>
+            `;
+            chatWindow.appendChild(msgDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        async function handleChat() {
+            const prompt = userInput.value.trim();
+            if (!prompt) return;
+
+            // Update UI
+            appendMessage('user', prompt);
+            userInput.value = '';
+
+            // Get AI Response
+            const aiResponse = await getResponse(prompt);
+            appendMessage('bot', aiResponse);
+
+            // Add to Sidebar History
+            saveToHistory(prompt);
+        }
+
+        function saveToHistory(text) {
+            const item = document.createElement('li');
+            item.className = 'history-item';
+            item.innerText = text;
+            historyList.prepend(item);
+        }
+
+        sendBtn.addEventListener('click', handleChat);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleChat();
+        });
+
+        // Simple Attachment Placeholder
+        document.getElementById('file-input').addEventListener('change', function() {
+            if(this.files[0]) {
+                appendMessage('user', `Attached file: ${this.files[0].name}`);
+            }
+        });
+    </script>
+</body>
+</html>
